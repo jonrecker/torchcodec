@@ -23,6 +23,9 @@ def pytest_configure(config):
         "markers", "needs_ffmpeg_cli: mark for tests that rely on ffmpeg"
     )
     config.addinivalue_line(
+        "markers", "needs_xpu: mark for tests that rely on a XPU device"
+    )
+    config.addinivalue_line(
         "markers", "needs_jpeg: mark for tests that rely on libjpeg support"
     )
     config.addinivalue_line(
@@ -82,6 +85,7 @@ def pytest_collection_modifyitems(items):
         # 'needs_cuda' mark, and the ones with device == 'cpu' won't have the
         # mark.
         needs_cuda = item.get_closest_marker("needs_cuda") is not None
+        needs_xpu = item.get_closest_marker("needs_xpu") is not None
         needs_ffmpeg_cli = item.get_closest_marker("needs_ffmpeg_cli") is not None
         needs_jpeg = item.get_closest_marker("needs_jpeg") is not None
         needs_png = item.get_closest_marker("needs_png") is not None
@@ -130,6 +134,13 @@ def pytest_collection_modifyitems(items):
             # those for whatever reason, we need to know.
             item.add_marker(pytest.mark.skip(reason="CUDA not available."))
 
+        if (
+            needs_xpu
+            and not torch.xpu.is_available()
+            and os.environ.get("FAIL_WITHOUT_XPU") is None
+        ):
+            item.add_marker(pytest.mark.skip(reason="XPU not available."))
+
         # Same rationale as needs_cuda; see skip_image_decoder_test().
         if needs_jpeg and skip_image_decoder_test("jpeg"):
             item.add_marker(pytest.mark.skip(reason="libjpeg support not available."))
@@ -160,6 +171,8 @@ def prevent_leaking_rng():
     builtin_rng_state = random.getstate()
     if torch.cuda.is_available():
         cuda_rng_state = torch.cuda.get_rng_state()
+    if torch.xpu.is_available():
+        xpu_rng_state = torch.xpu.get_rng_state()
 
     yield
 
@@ -167,3 +180,5 @@ def prevent_leaking_rng():
     random.setstate(builtin_rng_state)
     if torch.cuda.is_available():
         torch.cuda.set_rng_state(cuda_rng_state)
+    if torch.xpu.is_available():
+        torch.xpu.set_rng_state(xpu_rng_state)
