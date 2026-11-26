@@ -128,6 +128,7 @@ from .utils import (
     NASA_VIDEO_ROTATED,
     needs_avif,
     needs_cuda,
+    needs_xpu,
     needs_ffmpeg_cli,
     needs_heic,
     needs_jpeg,
@@ -2864,6 +2865,21 @@ class TestVideoDecoder:
 
         assert not decoder.cpu_fallback
         assert "No fallback required" in str(decoder.cpu_fallback)
+
+    @needs_xpu
+    def test_cpu_fallback_on_xpu(self):
+        decoder, _ = make_video_decoder(NASA_VIDEO.path, device="xpu")
+        assert not decoder.cpu_fallback.status_known
+
+        frame = decoder[0]
+        assert frame.device.type == "xpu"
+        assert decoder.cpu_fallback.status_known
+
+        force_cpu_fallback = (
+            os.getenv("FORCE_CPU_FALLBACK", "false").lower()
+            in {"1", "true", "on"}
+        )
+        assert bool(decoder.cpu_fallback) == force_cpu_fallback
 
     @needs_cuda
     def test_beta_backend_still_supported_for_bc(self):
